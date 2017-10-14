@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
+
+    <color name="gameViewColorBg">#000000</color>
+    <color name="titleBarColorBg">#5c5c5c</color>
+    <color name="bigGunBg">#5c5c5c</color>
+    <color name="bigGun">#8b8b8b</color>
+    <color name="bigGunText">#a3a3a3</color>
+    <color name="enemyColor">#2788de</color>
+
+
+</resources>
