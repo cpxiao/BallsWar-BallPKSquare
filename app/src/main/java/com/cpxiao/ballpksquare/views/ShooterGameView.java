@@ -43,12 +43,14 @@ public class ShooterGameView extends BaseGameView {
     private AdsLayout mAdsLayout;
     private BigGun mBigGun;
     private RectF mMovingRangeRectF;
-    private boolean createFlag = false;
+    private boolean isCreatingBall = false;
+    private int createdBallCount = 0;
+
 
     private float mEnemyVelocityY;
     private float mEnemyVelocityYDefault;
 
-    private float createEnemyArrayFlag;
+    private float createEnemyArrayDeltaY;
     private float createEnemyArrayMaxY;
 
     private boolean isGameOverShown = false;
@@ -74,7 +76,7 @@ public class ShooterGameView extends BaseGameView {
         int titleBarColorBg = ContextCompat.getColor(context, R.color.titleBarColorBg);
 
         setBgColor(gameViewColorBg);
-        mEnemyVelocityYDefault = 0.0001F * mViewHeight;
+        mEnemyVelocityYDefault = 0.0002F * mViewHeight;
         mEnemyVelocityY = mEnemyVelocityYDefault;
 
         float titleBarH = 50 * Resources.getSystem().getDisplayMetrics().density;
@@ -122,7 +124,7 @@ public class ShooterGameView extends BaseGameView {
 
 
         if (mBigGun != null) {
-            if (createFlag) {
+            if (isCreatingBall) {
                 mBigGun.onDraw(mCanvasCache, mPaint);
             } else {
                 mBigGun.draw(mCanvasCache, mPaint);
@@ -151,42 +153,29 @@ public class ShooterGameView extends BaseGameView {
         }
     }
 
-    private synchronized boolean checkGameOver() {
-        for (Sprite sprite : mSpriteQueue) {
-            if (SpriteControl.isTwoRectFSpriteCollided(sprite, mAdsLayout)
-                    || SpriteControl.isTwoRectFSpriteCollided(sprite, mBigGun)) {
-
-                return true;
-            }
-        }
-        return false;
-    }
-
-
     @Override
     protected void timingLogic() {
         super.timingLogic();
-        if (createEnemyArrayFlag > createEnemyArrayMaxY) {
-            mEnemyVelocityY += 0.2F * mEnemyVelocityYDefault;
+        if (createEnemyArrayDeltaY > createEnemyArrayMaxY) {
+            mEnemyVelocityY += 0.01F * mEnemyVelocityYDefault;
             createEnemyArray();
-            createEnemyArrayFlag = 0;
+            createEnemyArrayDeltaY = 0;
         }
-        createEnemyArrayFlag += mEnemyVelocityY;
+        createEnemyArrayDeltaY += mEnemyVelocityY;
 
-        if (mBigGun != null) {
-            for (Ball ball : mBallQueue) {
-                if (ball.isDestroyed()) {
-                    mBallQueue.remove(ball);
-                }
-
-                if (SpriteControl.isTwoRectFSpriteCollided(ball, mAdsLayout)) {
-                    ball.destroy();
-                }
-
+        for (Ball ball : mBallQueue) {
+            if (ball.isDestroyed()) {
+                mBallQueue.remove(ball);
             }
-            if (createFlag) {
-                createBallQueue(mBallCount, mBigGun);
+
+            if (SpriteControl.isTwoRectFSpriteCollided(ball, mAdsLayout)) {
+                ball.destroy();
             }
+
+        }
+
+        if (isCreatingBall) {
+            createBallQueue(mBallCount, mBigGun);
         }
 
         for (Sprite sprite : mSpriteQueue) {
@@ -198,12 +187,24 @@ public class ShooterGameView extends BaseGameView {
 
     }
 
+
+    private synchronized boolean checkGameOver() {
+        for (Sprite sprite : mSpriteQueue) {
+            if (SpriteControl.isTwoRectFSpriteCollided(sprite, mAdsLayout)
+                    || SpriteControl.isTwoRectFSpriteCollided(sprite, mBigGun)) {
+
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getAction();
         if (action == MotionEvent.ACTION_DOWN) {
             if (mBallQueue.isEmpty()) {
-                createFlag = true;
+                isCreatingBall = true;
             }
         }
         return super.onTouchEvent(event);
@@ -216,6 +217,9 @@ public class ShooterGameView extends BaseGameView {
     private synchronized void createEnemyArray() {
         int[][] squareArray = EnemyExtra.getEnemyArray();
         int life = (int) (mBallCount * (1 + Math.random()));
+        if (mFrame / mFPS % 8 == 0) {
+            life *= 2;
+        }
 
         if (squareArray != null) {
             int countX = EnemyExtra.COUNT_X, countY;
@@ -276,42 +280,45 @@ public class ShooterGameView extends BaseGameView {
     }
 
 
-    private void createBallQueue(int count, BigGun bigGun) {
+    private synchronized void createBallQueue(int count, BigGun bigGun) {
         if (mFrame % 5 != 0) {
             return;
         }
-        if (mBallQueue.size() < count) {
+        if (createdBallCount < count) {
             createBall(bigGun);
+            createdBallCount++;
         } else {
-            createFlag = false;
+            createdBallCount = 0;
+            isCreatingBall = false;
         }
     }
 
-    private void createBall(BigGun bigGun) {
+    private synchronized void createBall(BigGun bigGun) {
         if (bigGun == null) {
             return;
         }
-        float angle = bigGun.getDegrees();
+        float degrees = bigGun.getDegrees();
         float speed = 0.02F * mViewWidth;
-        float speedX = SpeedControl.getVelocityXByDegrees(speed, angle);
-        float speedY = SpeedControl.getVelocityYByDegrees(speed, angle);
+        float velocityX = SpeedControl.getVelocityXByDegrees(speed, degrees);
+        float velocityY = SpeedControl.getVelocityYByDegrees(speed, degrees);
         if (DEBUG) {
-            Log.d(TAG, "createBallQueue: speedX = " + speedX + ", speedY = " + speedY);
+            Log.d(TAG, "createBallQueue: velocityX = " + velocityX + ", velocityY = " + velocityY);
         }
-        float ballWH = 0.03F * mViewWidth;
+        float ballWH = 0.04F * mViewWidth;
         int color = Color.WHITE;
         Ball ball = (Ball) new Ball.Build()
                 .setColorBg(color)
                 .setWidth(ballWH)
                 .setHeight(ballWH)
                 .centerTo(bigGun.getMuzzleX(), bigGun.getMuzzleY())
-                .setVelocityX(speedX)
-                .setVelocityY(speedY)
+                .setVelocityX(velocityX)
+                .setVelocityY(velocityY)
                 .setMovingRangeRectF(mMovingRangeRectF)
                 .build();
         ball.setSpriteQueue(mSpriteQueue);
         ball.setShooterGameView(this);
         mBallQueue.add(ball);
+
     }
 
     public void addScore() {
@@ -328,7 +335,7 @@ public class ShooterGameView extends BaseGameView {
     }
 
     public void restart() {
-        createEnemyArrayFlag = 0;
+        createEnemyArrayDeltaY = 0;
         createEnemyArrayMaxY = 0;
         mEnemyVelocityY = mEnemyVelocityYDefault;
         isGameOverShown = false;
